@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Painel de Fidelidade — Frutaria</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --green-deep:  #0d2b1a;
+  --green-mid:   #1a4a2e;
+  --green-main:  #2d6a4f;
+  --green-light: #52b788;
+  --green-pale:  #b7e4c7;
+  --green-mist:  #f0fff4;
+  --cream:       #faf8f2;
+  --warm-white:  #fffef9;
+  --orange:      #e76f00;
+  --orange-lt:   #fff3e0;
+  --text-dark:   #1a1a1a;
+  --text-mid:    #4a5568;
+  --text-light:  #718096;
+  --border:      #e2e8f0;
+  --shadow:      0 2px 16px rgba(13,43,26,.09);
+  --shadow-lg:   0 8px 40px rgba(13,43,26,.15);
+  --sidebar-w:   256px;
+  --bottom-h:    64px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+
+/* ═══ LAYOUT ═══ */
+.app{display:flex;min-height:100vh}
+
+/* ═══ SIDEBAR (desktop) ═══ */
+.sidebar{
+  position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;
+  background:var(--green-deep);display:flex;flex-direction:column;
+  z-index:200;transition:transform .3s cubic-bezier(.4,0,.2,1);
+  box-shadow:4px 0 24px rgba(0,0,0,.18);
+}
+.sidebar-logo{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.logo-row{display:flex;align-items:center;gap:12px}
+.logo-emoji{font-size:28px;line-height:1}
+.logo-text h1{font-family:'DM Serif Display',serif;font-size:15px;color:var(--green-pale);line-height:1.2}
+.logo-text span{font-size:10px;color:var(--green-light);opacity:.7;text-transform:uppercase;letter-spacing:1.5px}
+.sidebar-nav{padding:16px 0;flex:1;overflow-y:auto}
+.nav-label{padding:12px 24px 6px;font-size:10px;font-weight:600;color:rgba(255,255,255,.28);text-transform:uppercase;letter-spacing:2px}
+.nav-item{
+  display:flex;align-items:center;gap:12px;padding:10px 24px;
+  cursor:pointer;color:rgba(255,255,255,.5);font-size:13.5px;
+  border-left:3px solid transparent;transition:all .18s;user-select:none;
+}
+.nav-item:hover{color:#fff;background:rgba(255,255,255,.05)}
+.nav-item.active{color:var(--green-pale);background:rgba(82,183,136,.13);border-left-color:var(--green-light);font-weight:500}
+.nav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.sidebar-footer{padding:16px 24px;border-top:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.28)}
+.sidebar-footer strong{color:rgba(255,255,255,.45)}
+
+/* ═══ MAIN ═══ */
+.main{margin-left:var(--sidebar-w);flex:1;min-height:100vh;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:100;
+  background:rgba(250,248,242,.93);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border);
+  padding:14px 32px;display:flex;align-items:center;justify-content:space-between;
+  min-height:60px;
+}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px;border:none;background:none}
+.hamburger span{width:20px;height:2px;background:var(--green-deep);border-radius:2px;transition:all .2s}
+.topbar-title{font-family:'DM Serif Display',serif;font-size:20px;color:var(--green-deep)}
+.topbar-badge{background:var(--green-mist);border:1px solid var(--green-pale);color:var(--green-main);font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px}
+.content{padding:28px 32px;flex:1}
+
+/* ═══ MOBILE BOTTOM NAV ═══ */
+.bottom-nav{
+  display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bottom-h);
+  background:var(--green-deep);z-index:200;
+  display:none;align-items:center;justify-content:space-around;
+  border-top:1px solid rgba(255,255,255,.1);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.bnav-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  cursor:pointer;color:rgba(255,255,255,.45);font-size:10px;
+  padding:6px 10px;border-radius:10px;transition:all .18s;flex:1;
+  border:none;background:none;font-family:'DM Sans',sans-serif;
+}
+.bnav-item.active{color:var(--green-pale)}
+.bnav-item .bicon{font-size:20px}
+
+/* Mobile overlay */
+.overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;
+  opacity:0;transition:opacity .3s;
+}
+.overlay.show{opacity:1}
+
+/* ═══ PANELS ═══ */
+.panel{display:none;animation:fadeUp .28s ease}
+.panel.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ═══ CARDS ═══ */
+.card{background:var(--warm-white);border-radius:16px;border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:20px;overflow:hidden}
+.card-header{padding:20px 24px 0;display:flex;align-items:center;gap:12px}
+.card-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.icon-g{background:var(--green-mist)}
+.icon-o{background:var(--orange-lt)}
+.card-header h2{font-family:'DM Serif Display',serif;font-size:17px;color:var(--green-deep)}
+.card-header p{font-size:12px;color:var(--text-light);margin-top:2px}
+.card-body{padding:20px 24px 24px}
+
+/* ═══ STATS ═══ */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px}
+.stat{background:var(--warm-white);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat.c1::before{background:var(--green-light)}
+.stat.c2::before{background:#38b2ac}
+.stat.c3::before{background:var(--orange)}
+.stat.c4::before{background:#4299e1}
+.stat-lbl{font-size:11px;color:var(--text-light);text-transform:uppercase;letter-spacing:.8px;font-weight:500}
+.stat-val{font-family:'DM Serif Display',serif;font-size:34px;color:var(--green-deep);margin:6px 0 3px;line-height:1}
+.stat-sub{font-size:11px;color:var(--text-light)}
+.stat-ico{position:absolute;right:16px;top:16px;font-size:26px;opacity:.12}
+
+/* ═══ UPLOAD ═══ */
+.upload-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.upzone{
+  border:2px dashed var(--green-pale);border-radius:12px;
+  padding:24px 16px;text-align:center;cursor:pointer;
+  transition:all .22s;background:var(--green-mist);position:relative;
+}
+.upzone:hover,.upzone.over{border-color:var(--green-light);background:#e8f8ef;transform:translateY(-2px);box-shadow:0 4px 16px rgba(82,183,136,.18)}
+.upzone.done{border-color:var(--green-main);border-style:solid;background:#d8f3dc}
+.upzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.up-ico{font-size:28px;margin-bottom:8px}
+.up-name{font-size:13px;font-weight:600;color:var(--green-mid);margin-bottom:3px}
+.up-desc{font-size:11px;color:var(--text-light)}
+.up-st{font-size:12px;font-weight:500;margin-top:6px}
+.up-st.ok{color:var(--green-main)}
+.up-st.err{color:#e53e3e}
+
+.progress-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:10px;display:none}
+.progress-fill{height:100%;background:var(--green-light);border-radius:3px;transition:width .4s ease;width:0%}
+
+.btn-merge{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;padding:13px;background:var(--green-main);color:#fff;
+  font-size:14px;font-weight:600;border:none;border-radius:10px;cursor:pointer;
+  transition:all .2s;margin-top:16px;font-family:'DM Sans',sans-serif;
+}
+.btn-merge:hover{background:var(--green-mid);transform:translateY(-1px);box-shadow:0 4px 16px rgba(45,106,79,.28)}
+.btn-merge:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* ═══ TABLE ═══ */
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{background:var(--green-deep)}
+thead th{padding:11px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--green-pale);text-transform:uppercase;letter-spacing:.8px;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
+tbody tr:hover{background:var(--green-mist)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:10px 14px;color:var(--text-dark)}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.b-green{background:#d8f3dc;color:var(--green-main)}
+.b-orange{background:var(--orange-lt);color:var(--orange)}
+.b-gray{background:var(--border);color:var(--text-light)}
+
+/* ═══ FORM ═══ */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;font-weight:500;color:var(--text-mid)}
+input[type=text],input[type=number],input[type=datetime-local],select,textarea{
+  border:1px solid var(--border);border-radius:8px;padding:9px 13px;
+  font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text-dark);
+  background:var(--warm-white);transition:border-color .18s;outline:none;width:100%;
+}
+input:focus,select:focus,textarea:focus{border-color:var(--green-light);box-shadow:0 0 0 3px rgba(82,183,136,.13)}
+textarea{resize:vertical;min-height:100px}
+.preview-lbl{font-size:10px;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.preview-box{
+  background:#e8f5e9;border-radius:16px 16px 16px 4px;padding:13px 16px;
+  font-size:13px;line-height:1.65;color:#1a1a1a;max-width:300px;
+  border:1px solid #c8e6c9;white-space:pre-wrap;min-height:80px;
+}
+.img-drop{border:2px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;position:relative}
+.img-drop:hover{border-color:var(--green-light);background:var(--green-mist)}
+.img-drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+#img-preview{max-width:100%;max-height:160px;border-radius:8px;margin-top:8px;display:none}
+.alcance-box{
+  background:linear-gradient(135deg,var(--green-mist),#e8f5e9);
+  border:1px solid var(--green-pale);border-radius:10px;
+  padding:13px 16px;display:flex;align-items:center;gap:12px;margin-top:14px;
+}
+.alcance-num{font-family:'DM Serif Display',serif;font-size:26px;color:var(--green-main)}
+.btn-send{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:13px 28px;background:var(--orange);color:#fff;
+  font-size:14px;font-weight:600;border:none;border-radius:10px;cursor:pointer;
+  transition:all .2s;margin-top:18px;font-family:'DM Sans',sans-serif;width:100%;
+}
+.btn-send:hover{background:#c95f00;transform:translateY(-1px);box-shadow:0 4px 16px rgba(231,111,0,.28)}
+
+/* ═══ PREMIOS ═══ */
+.premio-toggle{position:relative;display:inline-block;width:38px;height:21px}
+.premio-toggle input{opacity:0;width:0;height:0}
+.t-slider{position:absolute;inset:0;cursor:pointer;background:#cbd5e0;border-radius:21px;transition:.28s}
+.t-slider:before{content:'';position:absolute;width:15px;height:15px;border-radius:50%;background:#fff;left:3px;bottom:3px;transition:.28s}
+input:checked+.t-slider{background:var(--green-light)}
+input:checked+.t-slider:before{transform:translateX(17px)}
+.pts-inp{width:80px;padding:6px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;text-align:center;font-family:'DM Sans',sans-serif}
+.pts-inp:focus{border-color:var(--green-light);outline:none}
+.btn-save{
+  display:inline-flex;align-items:center;gap:8px;padding:9px 20px;
+  background:var(--green-main);color:#fff;border:none;border-radius:8px;
+  cursor:pointer;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;transition:all .18s;
+}
+.btn-save:hover{background:var(--green-mid)}
+
+/* ═══ WEBHOOKS ═══ */
+.wh-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.wh-item{background:var(--green-mist);border:1px solid var(--green-pale);border-radius:10px;padding:13px 14px;display:flex;align-items:flex-start;gap:10px}
+.wh-lbl{font-size:12px;font-weight:600;color:var(--green-main);margin-bottom:3px}
+.wh-url{font-size:11px;color:var(--text-light);font-family:monospace;word-break:break-all}
+.btn-copy{flex-shrink:0;padding:6px 10px;background:var(--green-main);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;transition:background .18s;margin-top:2px}
+.btn-copy:hover{background:var(--green-mid)}
+.info-box{margin-top:20px;padding:14px 16px;background:var(--orange-lt);border-radius:10px;border:1px solid #ffe0b2;font-size:13px;color:var(--text-mid);line-height:1.6}
+.info-box strong{color:var(--orange)}
+
+/* ═══ EMPTY ═══ */
+.empty{text-align:center;padding:48px 20px;color:var(--text-light);font-size:14px}
+.empty-ico{font-size:44px;margin-bottom:12px;opacity:.35}
+
+/* ═══ TOAST ═══ */
+.toast{
+  position:fixed;bottom:80px;right:20px;
+  background:var(--green-deep);color:#fff;
+  padding:12px 18px;border-radius:12px;
+  font-size:13px;font-weight:500;
+  display:flex;align-items:center;gap:9px;
+  box-shadow:var(--shadow-lg);
+  transform:translateY(80px);opacity:0;
+  transition:all .32s cubic-bezier(.34,1.56,.64,1);
+  z-index:9999;max-width:320px;
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{background:#c53030}
+
+/* ═══ RESPONSIVE ═══ */
+@media(max-width:1024px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+@media(max-width:768px){
+  :root{--sidebar-w:260px}
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding-bottom:var(--bottom-h)}
+  .topbar{padding:12px 16px}
+  .topbar-title{font-size:17px}
+  .hamburger{display:flex}
+  .content{padding:20px 16px}
+  .bottom-nav{display:flex}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:12px}
+  .stat-val{font-size:28px}
+  .upload-grid{grid-template-columns:1fr}
+  .form-grid{grid-template-columns:1fr}
+  .wh-grid{grid-template-columns:1fr}
+  .card-body{padding:16px 16px 20px}
+  .card-header{padding:16px 16px 0}
+  .toast{bottom:calc(var(--bottom-h) + 12px);left:16px;right:16px;max-width:none}
+  thead th{font-size:9px;padding:9px 10px}
+  tbody td{padding:9px 10px;font-size:12px}
+}
+
+@media(max-width:400px){
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .stat{padding:14px 14px}
+  .stat-val{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- OVERLAY (mobile) -->
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-row">
+      <div class="logo-emoji">🌿</div>
+      <div class="logo-text">
+        <h1>Painel de Fidelidade</h1>
+        <span>Frutaria</span>
+      </div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Principal</div>
+    <div class="nav-item active" onclick="nav('dashboard',this)"><span class="nav-icon">📊</span>Dashboard</div>
+    <div class="nav-item" onclick="nav('upload',this)"><span class="nav-icon">📂</span>Upload de Base</div>
+    <div class="nav-label" style="margin-top:10px">Comunicação</div>
+    <div class="nav-item" onclick="nav('campanha',this)"><span class="nav-icon">📣</span>Nova Campanha</div>
+    <div class="nav-item" onclick="nav('historico',this)"><span class="nav-icon">🕐</span>Histórico</div>
+    <div class="nav-label" style="margin-top:10px">Configurações</div>
+    <div class="nav-item" onclick="nav('premios',this)"><span class="nav-icon">🏆</span>Tabela de Prêmios</div>
+    <div class="nav-item" onclick="nav('webhooks',this)"><span class="nav-icon">🔗</span>URLs Webhooks</div>
+  </nav>
+  <div class="sidebar-footer"><strong>FideliConnect v1.0</strong><br>N8N + Evolution API</div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="topbar-title" id="page-title">Dashboard</div>
+    </div>
+    <div class="topbar-badge" id="page-badge">Visão Geral</div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="stats-grid">
+        <div class="stat c1"><div class="stat-ico">👥</div><div class="stat-lbl">Clientes</div><div class="stat-val" id="s-total">—</div><div class="stat-sub">na base ativa</div></div>
+        <div class="stat c2"><div class="stat-ico">🎂</div><div class="stat-lbl">Aniversariantes</div><div class="stat-val" id="s-aniv">—</div><div class="stat-sub" id="s-aniv-sub">do mês</div></div>
+        <div class="stat c3"><div class="stat-ico">💤</div><div class="stat-lbl">Inativos +30d</div><div class="stat-val" id="s-inat">—</div><div class="stat-sub">para reengajamento</div></div>
+        <div class="stat c4"><div class="stat-ico">🏆</div><div class="stat-lbl">Com Saldo</div><div class="stat-val" id="s-saldo">—</div><div class="stat-sub">saldo &gt; 0 pts</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-g">📋</div><div><h2>Clientes Recentes</h2><p>Últimos da base carregada</p></div></div>
+        <div class="card-body"><div id="dash-table"><div class="empty"><div class="empty-ico">📂</div>Faça o upload da base para ver os dados</div></div></div>
+      </div>
+    </div>
+
+    <!-- ══ UPLOAD ══ -->
+    <div class="panel" id="panel-upload">
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-g">📂</div><div><h2>Upload e Merge da Base</h2><p>Faça upload dos 3 arquivos Excel da Fidelimax</p></div></div>
+        <div class="card-body">
+          <div class="upload-grid">
+            <div class="upzone" id="z-base" ondragover="dov(event,'z-base')" ondragleave="dlv('z-base')" ondrop="ddr(event,'base')">
+              <input type="file" accept=".xlsx,.xls" onchange="hf(this,'base')">
+              <div class="up-ico">📋</div><div class="up-name">Base de Clientes</div>
+              <div class="up-desc">listagem_customers.xlsx</div>
+              <div class="up-st" id="st-base">Toque ou arraste o arquivo</div>
+            </div>
+            <div class="upzone" id="z-ultima" ondragover="dov(event,'z-ultima')" ondragleave="dlv('z-ultima')" ondrop="ddr(event,'ultima')">
+              <input type="file" accept=".xlsx,.xls" onchange="hf(this,'ultima')">
+              <div class="up-ico">🕐</div><div class="up-name">Última Compra</div>
+              <div class="up-desc">Ultima-Compra.xlsx</div>
+              <div class="up-st" id="st-ultima">Toque ou arraste o arquivo</div>
+            </div>
+            <div class="upzone" id="z-rec" ondragover="dov(event,'z-rec')" ondragleave="dlv('z-rec')" ondrop="ddr(event,'recorrentes')">
+              <input type="file" accept=".xlsx,.xls" onchange="hf(this,'recorrentes')">
+              <div class="up-ico">🔄</div><div class="up-name">Clientes Recorrentes</div>
+              <div class="up-desc">Clientes-Recorrentes.xlsx</div>
+              <div class="up-st" id="st-rec">Toque ou arraste o arquivo</div>
+            </div>
+          </div>
+          <div class="progress-bar" id="prog-bar"><div class="progress-fill" id="prog-fill"></div></div>
+          <button class="btn-merge" id="btn-merge" onclick="doMerge()" disabled>⚡ Processar e Fazer Merge</button>
+          <div id="merge-result" style="display:none;margin-top:20px">
+            <div class="card" style="margin-bottom:0">
+              <div class="card-header"><div class="card-icon icon-g">✅</div><div><h2>Merge Concluído!</h2><p id="merge-summary">—</p></div></div>
+              <div class="card-body">
+                <div class="tbl-wrap" id="merge-tbl"></div>
+                <button class="btn-merge" style="margin-top:14px;background:#1565c0" onclick="dlCSV()">⬇️ Baixar CSV para o Google Sheets</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CAMPANHA ══ -->
+    <div class="panel" id="panel-campanha">
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-o">📣</div><div><h2>Nova Campanha Manual</h2><p>Dispare para um segmento da base</p></div></div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="form-group"><label>Nome da Campanha</label><input type="text" id="c-nome" placeholder="Ex: Lançamento do Açaí"></div>
+            <div class="form-group"><label>Segmentação</label>
+              <select id="c-seg" onchange="calcAlc()">
+                <option value="todos">Toda a base ativa</option>
+                <option value="fem">Somente Feminino</option>
+                <option value="masc">Somente Masculino</option>
+                <option value="s0">Saldo zero</option>
+                <option value="spos">Com saldo de pontos</option>
+                <option value="inat">Inativos +30 dias</option>
+              </select>
+            </div>
+            <div class="form-group full"><label>Mensagem <span style="color:var(--text-light);font-weight:400">(use {nome} para personalizar)</span></label>
+              <textarea id="c-msg" placeholder="Olá {nome}! Temos uma novidade especial para você..." oninput="updPrev()"></textarea>
+            </div>
+            <div class="form-group">
+              <div class="preview-lbl">Prévia WhatsApp</div>
+              <div class="preview-box" id="c-prev">A mensagem aparecerá aqui...</div>
+            </div>
+            <div class="form-group">
+              <label>Imagem (opcional — JPEG/PNG até 5MB)</label>
+              <div class="img-drop" ondragover="event.preventDefault()" ondrop="dropImg(event)">
+                <input type="file" accept="image/jpeg,image/png" onchange="hImg(this)">
+                <div id="img-ph">🖼️<br><span style="font-size:11px;color:var(--text-light)">Toque ou arraste</span></div>
+                <img id="img-preview" src="" alt="">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Agendamento</label>
+              <select id="c-qdo" onchange="togSched()">
+                <option value="now">Enviar agora</option>
+                <option value="sched">Agendar data/hora</option>
+              </select>
+              <div id="sched-inp" style="display:none;margin-top:8px"><input type="datetime-local" id="c-dt"></div>
+            </div>
+          </div>
+          <div class="alcance-box">
+            <div><div class="alcance-num" id="alc-num">—</div><div style="font-size:12px;color:var(--text-mid)">clientes serão impactados</div></div>
+            <div style="font-size:26px;margin-left:auto">📱</div>
+          </div>
+          <button class="btn-send" onclick="confSend()">🚀 Confirmar e Enviar Campanha</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ HISTÓRICO ══ -->
+    <div class="panel" id="panel-historico">
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-g">🕐</div><div><h2>Histórico de Campanhas</h2><p>Campanhas manuais registradas</p></div></div>
+        <div class="card-body"><div id="hist-content"><div class="empty"><div class="empty-ico">📭</div>Nenhuma campanha disparada ainda</div></div></div>
+      </div>
+    </div>
+
+    <!-- ══ PRÊMIOS ══ -->
+    <div class="panel" id="panel-premios">
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-g">🏆</div><div><h2>Tabela de Prêmios</h2><p>Gerencie os prêmios do programa</p></div></div>
+        <div class="card-body">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Prêmio</th><th>Pontos</th><th>Alerta 80%</th><th>Status</th><th></th></tr></thead>
+              <tbody id="premios-tbody"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="np-nome" placeholder="Nome do prêmio" style="max-width:180px">
+            <input type="number" id="np-pts" placeholder="Pts" class="pts-inp" style="width:80px">
+            <button class="btn-save" onclick="addPremio()">➕ Adicionar</button>
+            <button class="btn-save" onclick="savePremios()" style="margin-left:auto">💾 Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ WEBHOOKS ══ -->
+    <div class="panel" id="panel-webhooks">
+      <div class="card">
+        <div class="card-header"><div class="card-icon icon-g">🔗</div><div><h2>URLs dos Webhooks</h2><p>Cole no painel Fidelimax → Integrações → Via API</p></div></div>
+        <div class="card-body">
+          <div class="wh-grid">
+            <div class="wh-item"><div style="flex:1"><div class="wh-lbl">🟢 W1 — Cadastro de Cliente</div><div class="wh-url">https://n8n.automaxhub.com.br/webhook/fidelimax-cadastro</div></div><button class="btn-copy" onclick="cpURL('https://n8n.automaxhub.com.br/webhook/fidelimax-cadastro')">Copiar</button></div>
+            <div class="wh-item"><div style="flex:1"><div class="wh-lbl">🟡 W2 — Pontuação</div><div class="wh-url">https://n8n.automaxhub.com.br/webhook/fidelimax-pontuacao</div></div><button class="btn-copy" onclick="cpURL('https://n8n.automaxhub.com.br/webhook/fidelimax-pontuacao')">Copiar</button></div>
+            <div class="wh-item"><div style="flex:1"><div class="wh-lbl">🟣 W3 — Resgate de Prêmio</div><div class="wh-url">https://n8n.automaxhub.com.br/webhook/fidelimax-resgate</div></div><button class="btn-copy" onclick="cpURL('https://n8n.automaxhub.com.br/webhook/fidelimax-resgate')">Copiar</button></div>
+            <div class="wh-item"><div style="flex:1"><div class="wh-lbl">🔵 W4 — Indicação</div><div class="wh-url">https://n8n.automaxhub.com.br/webhook/fidelimax-indicacao</div></div><button class="btn-copy" onclick="cpURL('https://n8n.automaxhub.com.br/webhook/fidelimax-indicacao')">Copiar</button></div>
+          </div>
+          <div class="info-box"><strong>⚠️ Importante</strong><br>Certifique-se que os workflows estão <strong>ativos</strong> no N8N antes de configurar os webhooks. Use a URL de produção <code>/webhook/</code> e não <code>/webhook-test/</code>.</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav" id="bnav">
+  <button class="bnav-item active" id="bn-dashboard" onclick="nav('dashboard',null,'bn-dashboard')"><span class="bicon">📊</span>Dashboard</button>
+  <button class="bnav-item" id="bn-upload" onclick="nav('upload',null,'bn-upload')"><span class="bicon">📂</span>Base</button>
+  <button class="bnav-item" id="bn-campanha" onclick="nav('campanha',null,'bn-campanha')"><span class="bicon">📣</span>Campanha</button>
+  <button class="bnav-item" id="bn-premios" onclick="nav('premios',null,'bn-premios')"><span class="bicon">🏆</span>Prêmios</button>
+  <button class="bnav-item" id="bn-webhooks" onclick="nav('webhooks',null,'bn-webhooks')"><span class="bicon">🔗</span>Webhooks</button>
+</nav>
+
+</div><!-- /app -->
+
+<!-- TOAST -->
+<div class="toast" id="toast"><span id="t-ico">✅</span><span id="t-msg"></span></div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────
+const S = {
+  files: {base:null,ultima:null,recorrentes:null},
+  clientes: [],
+  campanhas: JSON.parse(localStorage.getItem('fc_campanhas')||'[]'),
+  premios: JSON.parse(localStorage.getItem('fc_premios')||'null') || [
+    {nome:'Suco 1 Fruta',  pontos:175,ativo:true},
+    {nome:'Suco 2 Frutas', pontos:190,ativo:true},
+    {nome:'Suco Funcional',pontos:250,ativo:true},
+    {nome:'Creme 300ml',   pontos:350,ativo:true},
+    {nome:'Wrap',          pontos:525,ativo:true},
+    {nome:'Creme 500ml',   pontos:400,ativo:false},
+  ]
+};
+
+// ─── SIDEBAR MOBILE ────────────────────────────────────
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('overlay');
+  sb.classList.toggle('open');
+  ov.style.display=sb.classList.contains('open')?'block':'none';
+  setTimeout(()=>ov.classList.toggle('show',sb.classList.contains('open')),10);
+}
+function closeSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('overlay');
+  sb.classList.remove('open');
+  ov.classList.remove('show');
+  setTimeout(()=>ov.style.display='none',300);
+}
+
+// ─── NAVIGATION ────────────────────────────────────────
+const pages={
+  dashboard:['Dashboard','Visão Geral'],
+  upload:['Upload de Base','Merge dos Excels'],
+  campanha:['Nova Campanha','Disparo Manual'],
+  historico:['Histórico','Campanhas Enviadas'],
+  premios:['Tabela de Prêmios','Configuração'],
+  webhooks:['URLs Webhooks','Fidelimax Integration'],
+};
+
+function nav(page, sideEl, bnId){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.bnav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+page).classList.add('active');
+  if(sideEl) sideEl.classList.add('active');
+  if(bnId) document.getElementById(bnId).classList.add('active');
+  const [title,badge]=pages[page];
+  document.getElementById('page-title').textContent=title;
+  document.getElementById('page-badge').textContent=badge;
+  closeSidebar();
+  if(page==='premios') renderPremios();
+  if(page==='historico') renderHist();
+  if(page==='dashboard') updDash();
+  if(page==='campanha') calcAlc();
+}
+
+// ─── TOAST ─────────────────────────────────────────────
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  document.getElementById('t-ico').textContent=type==='err'?'❌':'✅';
+  document.getElementById('t-msg').textContent=msg;
+  t.className='toast show'+(type==='err'?' err':'');
+  setTimeout(()=>t.classList.remove('show'),3200);
+}
+
+// ─── FILE UPLOAD ───────────────────────────────────────
+function dov(e,id){e.preventDefault();document.getElementById(id).classList.add('over')}
+function dlv(id){document.getElementById(id).classList.remove('over')}
+function ddr(e,type){e.preventDefault();const zMap={base:'z-base',ultima:'z-ultima',recorrentes:'z-rec'};dlv(zMap[type]);const f=e.dataTransfer.files[0];if(f)pf(f,type)}
+function hf(inp,type){if(inp.files[0])pf(inp.files[0],type)}
+
+function pf(file,type){
+  const stId={base:'st-base',ultima:'st-ultima',recorrentes:'st-rec'}[type];
+  const zId={base:'z-base',ultima:'z-ultima',recorrentes:'z-rec'}[type];
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      S.files[type]=XLSX.utils.sheet_to_json(ws,{defval:''});
+      document.getElementById(stId).textContent='✅ '+S.files[type].length+' registros';
+      document.getElementById(stId).className='up-st ok';
+      document.getElementById(zId).classList.add('done');
+      chkReady();
+    }catch(err){
+      document.getElementById(stId).textContent='❌ Erro ao ler';
+      document.getElementById(stId).className='up-st err';
+    }
+  };
+  r.readAsBinaryString(file);
+}
+function chkReady(){document.getElementById('btn-merge').disabled=!(S.files.base&&S.files.ultima&&S.files.recorrentes)}
+
+// ─── MERGE ─────────────────────────────────────────────
+function cTel(t){return t?String(t).replace(/\D/g,''):''}
+function fTel(t){let x=cTel(t);if(!x)return '';if(!x.startsWith('55'))x='55'+x;return '+'+x}
+function fDate(d){return d?String(d).split('.')[0].trim():''}
+const slp=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function doMerge(){
+  const bar=document.getElementById('prog-bar'),fill=document.getElementById('prog-fill');
+  bar.style.display='block';fill.style.width='0%';
+  await slp(80);fill.style.width='20%';
+
+  const uMap={},rMap={};
+  S.files.ultima.forEach(r=>{const t=cTel(r['Telefone']||r['telefone']||'');if(t)uMap[t]=r['Data Última Compra']||r['DataUltimaCompra']||''});
+  S.files.recorrentes.forEach(r=>{const t=cTel(r['Telefone']||r['telefone']||'');if(t)rMap[t]=r['Total de recorrentes']||r['TotalRecorrentes']||0});
+
+  await slp(150);fill.style.width='55%';
+
+  const seen=new Set(),merged=[];
+  for(const r of S.files.base){
+    const tel=cTel(r['Telefone']||r['telefone']||'');
+    if(!tel||seen.has(tel))continue;seen.add(tel);
+    merged.push({
+      Nome:r['NomeCompleto']||r['Nome']||'',
+      Telefone:fTel(tel),
+      CPF:String(r['CPF']||r['cpf']||'').replace('.0',''),
+      Email:r['Email']||r['email']||'',
+      Sexo:r['Genero']||r['Sexo']||r['sexo']||'',
+      Nascimento:fDate(r['Nascimento']||r['nascimento']||''),
+      Filial:r['Filial_Vinculada']||r['Filial']||r['Loja']||'',
+      DataCadastro:fDate(r['Criacao']||r['DataCadastro']||''),
+      OptIn:'Sim',Status:'Ativo',
+      SaldoPontos:parseInt(r['Saldo']||r['SaldoPontos']||0)||0,
+      DataUltimaCompra:fDate(uMap[tel]||''),
+      TotalRecorrencias:parseInt(rMap[tel]||0)||0,
+      UltimaMsgEnviada:'',UltimaMsgReengajamento:''
+    });
+  }
+  await slp(200);fill.style.width='85%';
+
+  S.clientes=merged;
+  updDash();
+  renderMerge(merged);
+  await slp(300);fill.style.width='100%';
+  await slp(400);bar.style.display='none';
+  toast('Merge concluído! '+merged.length+' clientes na base.');
+}
+
+function renderMerge(data){
+  const prev=data.slice(0,6);
+  document.getElementById('merge-summary').textContent=data.length+' clientes únicos · '+data.filter(c=>!c.DataUltimaCompra).length+' nunca compraram';
+  document.getElementById('merge-tbl').innerHTML=`<table>
+    <thead><tr><th>Nome</th><th>Telefone</th><th>Filial</th><th>Saldo</th><th>Última Compra</th></tr></thead>
+    <tbody>${prev.map(c=>`<tr>
+      <td>${c.Nome}</td>
+      <td style="font-family:monospace;font-size:11px">${c.Telefone}</td>
+      <td>${c.Filial}</td>
+      <td><span class="badge ${c.SaldoPontos>0?'b-green':'b-gray'}">${c.SaldoPontos}pts</span></td>
+      <td style="font-size:11px">${c.DataUltimaCompra||'<span style="color:#aaa">Nunca</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table>${data.length>6?`<div style="padding:10px 14px;font-size:12px;color:var(--text-light)">...e mais ${data.length-6} clientes</div>`:''}`;
+  document.getElementById('merge-result').style.display='block';
+}
+
+function dlCSV(){
+  if(!S.clientes.length){toast('Faça o merge primeiro','err');return}
+  const cols=['Nome','Telefone','CPF','Email','Sexo','Nascimento','Filial','DataCadastro','OptIn','Status','SaldoPontos','DataUltimaCompra','TotalRecorrencias','UltimaMsgEnviada','UltimaMsgReengajamento'];
+  const rows=[cols.join(','),...S.clientes.map(c=>cols.map(k=>'"'+String(c[k]||'').replace(/"/g,'""')+'"').join(','))];
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8;'}));
+  a.download='Base_Clientes_FideliConnect.csv';a.click();
+  toast('CSV baixado!');
+}
+
+// ─── DASHBOARD ─────────────────────────────────────────
+function updDash(){
+  const c=S.clientes;if(!c.length)return;
+  document.getElementById('s-total').textContent=c.length;
+  const hoje=new Date(),mes=hoje.getMonth()+1;
+  const aniv=c.filter(x=>{if(!x.Nascimento)return false;const p=x.Nascimento.split('/');return p.length>=2&&parseInt(p[1])===mes});
+  document.getElementById('s-aniv').textContent=aniv.length;
+  document.getElementById('s-aniv-sub').textContent=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][mes-1];
+  const lim=new Date(hoje-30*864e5);
+  const inat=c.filter(x=>{if(!x.DataUltimaCompra)return true;const p=x.DataUltimaCompra.split(' ')[0].split('/');return p.length<3?false:new Date(p[2]+'-'+p[1]+'-'+p[0])<lim});
+  document.getElementById('s-inat').textContent=inat.length;
+  document.getElementById('s-saldo').textContent=c.filter(x=>parseInt(x.SaldoPontos)>0).length;
+  const rec=[...c].reverse().slice(0,5);
+  document.getElementById('dash-table').innerHTML=`<div class="tbl-wrap"><table>
+    <thead><tr><th>Nome</th><th>Telefone</th><th>Filial</th><th>Saldo</th><th>Últ. Compra</th></tr></thead>
+    <tbody>${rec.map(cl=>`<tr>
+      <td>${cl.Nome}</td>
+      <td style="font-family:monospace;font-size:11px">${cl.Telefone}</td>
+      <td>${cl.Filial}</td>
+      <td><span class="badge ${parseInt(cl.SaldoPontos)>0?'b-green':'b-gray'}">${cl.SaldoPontos}pts</span></td>
+      <td style="font-size:11px">${cl.DataUltimaCompra||'<span style="color:#aaa">Nunca</span>'}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ─── CAMPANHA ──────────────────────────────────────────
+function updPrev(){
+  const msg=document.getElementById('c-msg').value;
+  document.getElementById('c-prev').innerHTML=msg.replace(/\{nome\}/g,'Maria').replace(/\*(.*?)\*/g,'<strong>$1</strong>')||'A mensagem aparecerá aqui...';
+}
+function togSched(){document.getElementById('sched-inp').style.display=document.getElementById('c-qdo').value==='sched'?'block':'none'}
+function calcAlc(){
+  const seg=document.getElementById('c-seg')?.value,c=S.clientes;
+  if(!c.length){document.getElementById('alc-num').textContent='—';return}
+  const lim=new Date(new Date()-30*864e5);
+  let f=c;
+  if(seg==='fem')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('femin'));
+  else if(seg==='masc')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('masc'));
+  else if(seg==='s0')f=c.filter(x=>parseInt(x.SaldoPontos||0)===0);
+  else if(seg==='spos')f=c.filter(x=>parseInt(x.SaldoPontos||0)>0);
+  else if(seg==='inat')f=c.filter(x=>{if(!x.DataUltimaCompra)return true;const p=x.DataUltimaCompra.split(' ')[0].split('/');return p.length<3?false:new Date(p[2]+'-'+p[1]+'-'+p[0])<lim});
+  document.getElementById('alc-num').textContent=f.length;
+}
+function hImg(inp){
+  const f=inp.files[0];if(!f)return;
+  if(f.size>5*1024*1024){toast('Máximo 5MB','err');return}
+  const r=new FileReader();
+  r.onload=e=>{document.getElementById('img-preview').src=e.target.result;document.getElementById('img-preview').style.display='block';document.getElementById('img-ph').style.display='none'};
+  r.readAsDataURL(f);
+}
+function dropImg(e){e.preventDefault();const f=e.dataTransfer.files[0];if(f)hImg({files:[f]})}
+function confSend(){
+  const nome=document.getElementById('c-nome').value.trim();
+  const msg=document.getElementById('c-msg').value.trim();
+  const alc=document.getElementById('alc-num').textContent;
+  if(!nome){toast('Informe o nome da campanha','err');return}
+  if(!msg){toast('Escreva a mensagem','err');return}
+  if(alc==='—'||alc==='0'){toast('Nenhum cliente no segmento','err');return}
+  if(!confirm(`Enviar "${nome}" para ${alc} clientes?\n\nConfirmar?`))return;
+  const camp={id:Date.now(),nome,mensagem:msg,segmento:document.getElementById('c-seg').options[document.getElementById('c-seg').selectedIndex].text,alcance:alc,dataEnvio:new Date().toLocaleString('pt-BR'),status:'Registrado'};
+  S.campanhas.unshift(camp);
+  localStorage.setItem('fc_campanhas',JSON.stringify(S.campanhas));
+  document.getElementById('c-nome').value='';
+  document.getElementById('c-msg').value='';
+  document.getElementById('c-prev').innerHTML='A mensagem aparecerá aqui...';
+  document.getElementById('img-preview').style.display='none';
+  document.getElementById('img-ph').style.display='block';
+  toast('Campanha "'+nome+'" registrada!');
+}
+
+// ─── HISTÓRICO ─────────────────────────────────────────
+function renderHist(){
+  const el=document.getElementById('hist-content');
+  if(!S.campanhas.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>Nenhuma campanha ainda</div>';return}
+  el.innerHTML=`<div class="tbl-wrap"><table>
+    <thead><tr><th>Campanha</th><th>Segmento</th><th>Alcance</th><th>Data</th><th>Status</th></tr></thead>
+    <tbody>${S.campanhas.map(c=>`<tr>
+      <td><strong>${c.nome}</strong><br><span style="font-size:11px;color:var(--text-light)">${c.mensagem.substring(0,50)}...</span></td>
+      <td style="font-size:12px">${c.segmento}</td>
+      <td><span class="badge b-green">${c.alcance}</span></td>
+      <td style="font-size:11px">${c.dataEnvio}</td>
+      <td><span class="badge b-green">${c.status}</span></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ─── PRÊMIOS ───────────────────────────────────────────
+function renderPremios(){
+  document.getElementById('premios-tbody').innerHTML=S.premios.map((p,i)=>`<tr>
+    <td><input type="text" value="${p.nome}" class="pts-inp" style="width:140px" onchange="S.premios[${i}].nome=this.value"></td>
+    <td><input type="number" value="${p.pontos}" class="pts-inp" onchange="S.premios[${i}].pontos=parseInt(this.value)"></td>
+    <td><span class="badge b-gray">${Math.floor(p.pontos*.8)}pts</span></td>
+    <td><label class="premio-toggle"><input type="checkbox" ${p.ativo?'checked':''} onchange="S.premios[${i}].ativo=this.checked"><span class="t-slider"></span></label></td>
+    <td><button onclick="rmPremio(${i})" style="background:none;border:none;cursor:pointer;font-size:15px;color:#e53e3e">🗑️</button></td>
+  </tr>`).join('');
+}
+function addPremio(){
+  const n=document.getElementById('np-nome').value.trim(),p=parseInt(document.getElementById('np-pts').value);
+  if(!n||!p){toast('Preencha nome e pontos','err');return}
+  S.premios.push({nome:n,pontos:p,ativo:true});
+  document.getElementById('np-nome').value='';document.getElementById('np-pts').value='';
+  renderPremios();toast('Prêmio adicionado!');
+}
+function rmPremio(i){if(!confirm('Remover "'+S.premios[i].nome+'"?'))return;S.premios.splice(i,1);renderPremios()}
+function savePremios(){localStorage.setItem('fc_premios',JSON.stringify(S.premios));toast('Tabela salva!')}
+
+// ─── COPY URL ──────────────────────────────────────────
+function cpURL(url){
+  navigator.clipboard.writeText(url).then(()=>toast('URL copiada!')).catch(()=>{
+    const t=document.createElement('textarea');t.value=url;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);toast('URL copiada!');
+  });
+}
+
+// ─── INIT ──────────────────────────────────────────────
+renderPremios();
+</script>
+</body>
+</html>
