@@ -204,6 +204,7 @@ textarea{resize:vertical;min-height:100px}
   transition:all .2s;margin-top:18px;font-family:'DM Sans',sans-serif;width:100%;
 }
 .btn-send:hover{background:#c95f00;transform:translateY(-1px);box-shadow:0 4px 16px rgba(231,111,0,.28)}
+.btn-send:disabled{opacity:.5;cursor:not-allowed;transform:none}
 
 /* ═══ PREMIOS ═══ */
 .premio-toggle{position:relative;display:inline-block;width:38px;height:21px}
@@ -249,6 +250,10 @@ input:checked+.t-slider:before{transform:translateX(17px)}
 }
 .toast.show{transform:translateY(0);opacity:1}
 .toast.err{background:#c53030}
+
+/* ═══ SPINNER ═══ */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* ═══ RESPONSIVE ═══ */
 @media(max-width:1024px){
@@ -392,12 +397,12 @@ input:checked+.t-slider:before{transform:translateX(17px)}
             <div class="form-group"><label>Nome da Campanha</label><input type="text" id="c-nome" placeholder="Ex: Lançamento do Açaí"></div>
             <div class="form-group"><label>Segmentação</label>
               <select id="c-seg" onchange="calcAlc()">
-                <option value="todos">Toda a base ativa</option>
-                <option value="fem">Somente Feminino</option>
-                <option value="masc">Somente Masculino</option>
-                <option value="s0">Saldo zero</option>
-                <option value="spos">Com saldo de pontos</option>
-                <option value="inat">Inativos +30 dias</option>
+                <option value="toda_base">Toda a base ativa</option>
+                <option value="feminino">Somente Feminino</option>
+                <option value="masculino">Somente Masculino</option>
+                <option value="saldo_zero">Saldo zero</option>
+                <option value="com_saldo">Com saldo de pontos</option>
+                <option value="inativos">Inativos +30 dias</option>
               </select>
             </div>
             <div class="form-group full"><label>Mensagem <span style="color:var(--text-light);font-weight:400">(use {nome} para personalizar)</span></label>
@@ -414,6 +419,9 @@ input:checked+.t-slider:before{transform:translateX(17px)}
                 <div id="img-ph">🖼️<br><span style="font-size:11px;color:var(--text-light)">Toque ou arraste</span></div>
                 <img id="img-preview" src="" alt="">
               </div>
+              <div id="img-url-box" style="display:none;margin-top:8px">
+                <input type="text" id="img-url-val" placeholder="URL da imagem será gerada..." readonly style="font-size:11px;color:var(--text-light)">
+              </div>
             </div>
             <div class="form-group">
               <label>Agendamento</label>
@@ -428,7 +436,7 @@ input:checked+.t-slider:before{transform:translateX(17px)}
             <div><div class="alcance-num" id="alc-num">—</div><div style="font-size:12px;color:var(--text-mid)">clientes serão impactados</div></div>
             <div style="font-size:26px;margin-left:auto">📱</div>
           </div>
-          <button class="btn-send" onclick="confSend()">🚀 Confirmar e Enviar Campanha</button>
+          <button class="btn-send" id="btn-enviar" onclick="confSend()">🚀 Confirmar e Enviar Campanha</button>
         </div>
       </div>
     </div>
@@ -496,6 +504,9 @@ input:checked+.t-slider:before{transform:translateX(17px)}
 <div class="toast" id="toast"><span id="t-ico">✅</span><span id="t-msg"></span></div>
 
 <script>
+// ─── CONFIG ────────────────────────────────────────────
+const WEBHOOK_CAMPANHA = 'https://n8n.automaxhub.com.br/webhook/fidelimax-campanha';
+
 // ─── STATE ─────────────────────────────────────────────
 const S = {
   files: {base:null,ultima:null,recorrentes:null},
@@ -508,7 +519,8 @@ const S = {
     {nome:'Creme 300ml',   pontos:350,ativo:true},
     {nome:'Wrap',          pontos:525,ativo:true},
     {nome:'Creme 500ml',   pontos:400,ativo:false},
-  ]
+  ],
+  imgBase64: null
 };
 
 // ─── SIDEBAR MOBILE ────────────────────────────────────
@@ -695,43 +707,104 @@ function updPrev(){
   document.getElementById('c-prev').innerHTML=msg.replace(/\{nome\}/g,'Maria').replace(/\*(.*?)\*/g,'<strong>$1</strong>')||'A mensagem aparecerá aqui...';
 }
 function togSched(){document.getElementById('sched-inp').style.display=document.getElementById('c-qdo').value==='sched'?'block':'none'}
+
 function calcAlc(){
   const seg=document.getElementById('c-seg')?.value,c=S.clientes;
   if(!c.length){document.getElementById('alc-num').textContent='—';return}
   const lim=new Date(new Date()-30*864e5);
   let f=c;
-  if(seg==='fem')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('femin'));
-  else if(seg==='masc')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('masc'));
-  else if(seg==='s0')f=c.filter(x=>parseInt(x.SaldoPontos||0)===0);
-  else if(seg==='spos')f=c.filter(x=>parseInt(x.SaldoPontos||0)>0);
-  else if(seg==='inat')f=c.filter(x=>{if(!x.DataUltimaCompra)return true;const p=x.DataUltimaCompra.split(' ')[0].split('/');return p.length<3?false:new Date(p[2]+'-'+p[1]+'-'+p[0])<lim});
+  if(seg==='feminino')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('femin'));
+  else if(seg==='masculino')f=c.filter(x=>(x.Sexo||'').toLowerCase().includes('masc'));
+  else if(seg==='saldo_zero')f=c.filter(x=>parseInt(x.SaldoPontos||0)===0);
+  else if(seg==='com_saldo')f=c.filter(x=>parseInt(x.SaldoPontos||0)>0);
+  else if(seg==='inativos')f=c.filter(x=>{if(!x.DataUltimaCompra)return true;const p=x.DataUltimaCompra.split(' ')[0].split('/');return p.length<3?false:new Date(p[2]+'-'+p[1]+'-'+p[0])<lim});
   document.getElementById('alc-num').textContent=f.length;
 }
+
 function hImg(inp){
   const f=inp.files[0];if(!f)return;
   if(f.size>5*1024*1024){toast('Máximo 5MB','err');return}
   const r=new FileReader();
-  r.onload=e=>{document.getElementById('img-preview').src=e.target.result;document.getElementById('img-preview').style.display='block';document.getElementById('img-ph').style.display='none'};
+  r.onload=e=>{
+    // Salva base64 para enviar ao N8N
+    S.imgBase64 = e.target.result;
+    document.getElementById('img-preview').src=e.target.result;
+    document.getElementById('img-preview').style.display='block';
+    document.getElementById('img-ph').style.display='none';
+  };
   r.readAsDataURL(f);
 }
 function dropImg(e){e.preventDefault();const f=e.dataTransfer.files[0];if(f)hImg({files:[f]})}
-function confSend(){
+
+async function confSend(){
   const nome=document.getElementById('c-nome').value.trim();
   const msg=document.getElementById('c-msg').value.trim();
+  const seg=document.getElementById('c-seg').value;
   const alc=document.getElementById('alc-num').textContent;
+  const agendamento=document.getElementById('c-qdo').value==='sched'?document.getElementById('c-dt').value:null;
+
   if(!nome){toast('Informe o nome da campanha','err');return}
   if(!msg){toast('Escreva a mensagem','err');return}
   if(alc==='—'||alc==='0'){toast('Nenhum cliente no segmento','err');return}
+  if(agendamento&&!agendamento){toast('Informe a data de agendamento','err');return}
   if(!confirm(`Enviar "${nome}" para ${alc} clientes?\n\nConfirmar?`))return;
-  const camp={id:Date.now(),nome,mensagem:msg,segmento:document.getElementById('c-seg').options[document.getElementById('c-seg').selectedIndex].text,alcance:alc,dataEnvio:new Date().toLocaleString('pt-BR'),status:'Registrado'};
-  S.campanhas.unshift(camp);
-  localStorage.setItem('fc_campanhas',JSON.stringify(S.campanhas));
-  document.getElementById('c-nome').value='';
-  document.getElementById('c-msg').value='';
-  document.getElementById('c-prev').innerHTML='A mensagem aparecerá aqui...';
-  document.getElementById('img-preview').style.display='none';
-  document.getElementById('img-ph').style.display='block';
-  toast('Campanha "'+nome+'" registrada!');
+
+  // Bloqueia botão e mostra spinner
+  const btn=document.getElementById('btn-enviar');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Enviando...';
+
+  try {
+    const payload = {
+      nomeCampanha: nome,
+      segmento: seg,
+      mensagem: msg,
+      imagemUrl: S.imgBase64 || null,
+      agendamento: agendamento
+    };
+
+    const resp = await fetch(WEBHOOK_CAMPANHA, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    });
+
+    const result = await resp.json();
+
+    if(result.success) {
+      // Salva no histórico local
+      const camp={
+        id:Date.now(),
+        nome,
+        mensagem:msg,
+        segmento:document.getElementById('c-seg').options[document.getElementById('c-seg').selectedIndex].text,
+        alcance:alc,
+        dataEnvio:new Date().toLocaleString('pt-BR'),
+        status:'Enviado ✅',
+        temImagem: !!S.imgBase64
+      };
+      S.campanhas.unshift(camp);
+      localStorage.setItem('fc_campanhas',JSON.stringify(S.campanhas));
+
+      // Limpa formulário
+      document.getElementById('c-nome').value='';
+      document.getElementById('c-msg').value='';
+      document.getElementById('c-prev').innerHTML='A mensagem aparecerá aqui...';
+      document.getElementById('img-preview').style.display='none';
+      document.getElementById('img-ph').style.display='block';
+      S.imgBase64=null;
+
+      toast('Campanha "'+nome+'" disparada com sucesso! 🚀');
+    } else {
+      toast(result.mensagem||'Erro ao enviar campanha','err');
+    }
+  } catch(err) {
+    toast('Erro ao conectar com o N8N. Verifique se o workflow está ativo.','err');
+    console.error(err);
+  } finally {
+    btn.disabled=false;
+    btn.innerHTML='🚀 Confirmar e Enviar Campanha';
+  }
 }
 
 // ─── HISTÓRICO ─────────────────────────────────────────
@@ -739,11 +812,12 @@ function renderHist(){
   const el=document.getElementById('hist-content');
   if(!S.campanhas.length){el.innerHTML='<div class="empty"><div class="empty-ico">📭</div>Nenhuma campanha ainda</div>';return}
   el.innerHTML=`<div class="tbl-wrap"><table>
-    <thead><tr><th>Campanha</th><th>Segmento</th><th>Alcance</th><th>Data</th><th>Status</th></tr></thead>
+    <thead><tr><th>Campanha</th><th>Segmento</th><th>Alcance</th><th>Imagem</th><th>Data</th><th>Status</th></tr></thead>
     <tbody>${S.campanhas.map(c=>`<tr>
       <td><strong>${c.nome}</strong><br><span style="font-size:11px;color:var(--text-light)">${c.mensagem.substring(0,50)}...</span></td>
       <td style="font-size:12px">${c.segmento}</td>
       <td><span class="badge b-green">${c.alcance}</span></td>
+      <td style="font-size:12px">${c.temImagem?'🖼️ Sim':'—'}</td>
       <td style="font-size:11px">${c.dataEnvio}</td>
       <td><span class="badge b-green">${c.status}</span></td>
     </tr>`).join('')}</tbody>
