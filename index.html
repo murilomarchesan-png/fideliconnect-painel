@@ -745,7 +745,7 @@ async function confSend(){
 
   if(!nome){toast('Informe o nome da campanha','err');return}
   if(!msg){toast('Escreva a mensagem','err');return}
-  if(alc==='—'||alc==='0'){toast('Nenhum cliente no segmento','err');return}
+  if(alc==='0'){toast('Nenhum cliente no segmento','err');return}
   if(agendamento&&!agendamento){toast('Informe a data de agendamento','err');return}
   if(!confirm(`Enviar "${nome}" para ${alc} clientes?\n\nConfirmar?`))return;
 
